@@ -7,15 +7,15 @@
 #include <PubSubClient.h>
 #include <charconversion.h>
 
+// Definition for I2C pins
 #define I2C_SDA 1 
 #define I2C_SCL 2 
-
+// Aufrufe Klassen von Sensoren
 Adafruit_BMP280 bmp;  // I2C
 Adafruit_Sensor* bmp_temp = bmp.getTemperatureSensor();
 Adafruit_Sensor* bmp_pressure = bmp.getPressureSensor();
 Adafruit_AHTX0 aht;
 hp_BH1750 BH1750;
-
 sensors_event_t humidity, temp, temp_event, pressure_event;
 float lux;
 
@@ -40,11 +40,13 @@ const char* mqtt_server = "192.168.1.123";
 ValueConverter converter;
 // Delay für Publish
 unsigned long mqttstartzeit = 0;  //Deklaration Startzeit für Mqtt
-#define MQTTINTERVALL 5000        // Konstante für Mqtt Intervall (Faktor 10)
+#define MQTTINTERVALL 5000        // Konstante für Mqtt Intervall in ms
 //Topics
-#define outTopicA "/NS/TempBMP"
-#define outTopicB "/NS/HumAHT"
-#define outTopicC "/NS/LuxBH"
+#define tempbmp_out "/NS/TempBMP"
+#define humaht_out "/NS/HumAHT"
+#define luxbh_out "/NS/LuxBH"
+#define presbmp_out "/NS/PresBMP"
+#define tempaht_out "/NS/TempAHT"
 #define inTopic "/NS/#"
 
 
@@ -80,6 +82,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
  }
 
+// SETUP
 void setup() {
   Serial.begin(115200);
   //WIFI
@@ -141,7 +144,7 @@ void setup() {
 }
 
 
-
+// Function for Website
 void wifi() {
   WiFiClient client = server.available();  // Listen for incoming clients
 
@@ -166,7 +169,6 @@ void wifi() {
             client.println("Content-type:text/html");
             client.println("Connection: close");
             client.println();
-
 
             // Display the HTML web page
             client.println("<!DOCTYPE html><html>");
@@ -214,31 +216,37 @@ void wifi() {
   }
 }
 
+// Function for MQTT
 void mqtt(){
   //MQTT
-  char payload1[50];
-  char payload2[50];
-  char payload3[50];
-
-  if (millis() - mqttstartzeit > MQTTINTERVALL) {  //Zeitabgelaufen
+  char payload_float[50]; //payload with data only used for conversion
+  
+  if (millis() - mqttstartzeit > MQTTINTERVALL) {  //Time delay for publish to minimise workload
     mqttstartzeit = millis();  
 
     if (!client.connected()) {
       reconnect();
     }
     client.loop();
-
-    converter.floatToChar(temp_event.temperature, payload1);
-    client.publish(outTopicA,payload1);
-
-    converter.floatToChar(humidity.relative_humidity, payload2);
-    client.publish(outTopicB,payload2);
-
-    converter.floatToChar(lux, payload3);
-    client.publish(outTopicC,payload3);
+    // Temparatur BMP
+    converter.floatToChar(temp_event.temperature, payload_float); // Convert flaot to Char for MQTT
+    client.publish(tempbmp_out,payload_float); // Publish command for mqtt
+    // Humidity AHT
+    converter.floatToChar(humidity.relative_humidity, payload_float);
+    client.publish(humaht_out,payload_float);
+    // LUX BH1750
+    converter.floatToChar(lux, payload_float);
+    client.publish(luxbh_out,payload_float);
+    // Pressure BMP
+    converter.floatToChar(pressure_event.pressure, payload_float);
+    client.publish(presbmp_out,payload_float);
+    // Temparatur AHT
+    converter.floatToChar(temp.temperature, payload_float);
+    client.publish(tempaht_out,payload_float);
   }
 }
 
+// Loop Function 
 void loop() {
   wifi();
   mqtt();
@@ -255,9 +263,8 @@ void loop() {
 
 
 
-
+// Function for Debug (Serial Print)
 void debug() {
-
   //DEBUG
   if (millis() - debugstartzeit > DEBUGINTERVALL) {  //Zeitabgelaufen
     debugstartzeit = millis();                       //Startzeit aktualisiert
@@ -266,7 +273,6 @@ void debug() {
     Serial.print(F("Temperature BMP280: "));
     Serial.print(temp_event.temperature);
     Serial.println(" °C");
-
     Serial.print(F("Pressure BMP280: "));
     Serial.print(pressure_event.pressure);
     Serial.println(" hPa");
@@ -277,6 +283,7 @@ void debug() {
     Serial.print("Humidity AHT20: ");
     Serial.print(humidity.relative_humidity);
     Serial.println(" % rH");
+
     Serial.print("Lux BH1750: ");
     Serial.print(lux);
     Serial.println(" lx");
