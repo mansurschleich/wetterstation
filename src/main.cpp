@@ -8,6 +8,8 @@
 #include <charconversion.h>
 
 // Definition for I2C pins
+// this is a test
+// issue 13 oder so
 #define I2C_SDA 1 
 #define I2C_SCL 2 
 // Aufrufe Klassen von Sensoren
